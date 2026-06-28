@@ -33,7 +33,14 @@ from auditx.core import (
     RequestContext,
 )
 
-__version__ = "0.1.0"
+try:
+    from auditx.fastapi import AuditMiddleware
+except ImportError:
+    class AuditMiddleware:  # type: ignore
+        def __init__(self, *args: Any, **kwargs: Any) -> None:
+            raise ImportError("Please install starlette and fastapi to use AuditMiddleware.")
+
+__version__ = "0.1.2"
 __author__ = "auditX"
 __license__ = "Proprietary"
 __all__ = [
@@ -44,6 +51,7 @@ __all__ = [
     "BusinessModule",
     "LogLevel",
     "RequestContext",
+    "AuditMiddleware",
     "audit",
     "configure",
     "create_logger",

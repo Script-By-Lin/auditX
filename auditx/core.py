@@ -7,6 +7,7 @@ Proprietary — not licensed for use in other projects without permission.
 from __future__ import annotations
 
 import datetime
+import contextvars
 import json
 import logging
 import socket
@@ -106,7 +107,18 @@ class AuditEntry:
 class RequestContext:
     """Carries user and tenant context across a request or background job."""
 
-    _local = threading.local()
+    _context: contextvars.ContextVar[dict[str, str]] = contextvars.ContextVar(
+        "request_context",
+        default={
+            "user": "SYSTEM",
+            "user_role": "",
+            "company_id": "",
+            "branch_id": "",
+            "session_id": "",
+            "request_id": "",
+            "ip": "",
+        },
+    )
 
     @classmethod
     def set(
@@ -120,31 +132,38 @@ class RequestContext:
         request_id: str = "",
         ip: str = "",
     ) -> None:
-        cls._local.user = user
-        cls._local.user_role = user_role
-        cls._local.company_id = company_id
-        cls._local.branch_id = branch_id
-        cls._local.session_id = session_id
-        cls._local.request_id = request_id or str(uuid.uuid4())
-        cls._local.ip = ip
+        cls._context.set({
+            "user": user,
+            "user_role": user_role,
+            "company_id": company_id,
+            "branch_id": branch_id,
+            "session_id": session_id,
+            "request_id": request_id or str(uuid.uuid4()),
+            "ip": ip,
+        })
+
+    @classmethod
+    def update(cls, **kwargs: Any) -> None:
+        """Update specific fields of the request context dynamically."""
+        current = dict(cls.get())
+        current.update(kwargs)
+        cls._context.set(current)
 
     @classmethod
     def get(cls) -> dict[str, str]:
-        return {
-            "user": getattr(cls._local, "user", "SYSTEM"),
-            "user_role": getattr(cls._local, "user_role", ""),
-            "company_id": getattr(cls._local, "company_id", ""),
-            "branch_id": getattr(cls._local, "branch_id", ""),
-            "session_id": getattr(cls._local, "session_id", ""),
-            "request_id": getattr(cls._local, "request_id", ""),
-            "ip": getattr(cls._local, "ip", ""),
-        }
+        return cls._context.get()
 
     @classmethod
     def clear(cls) -> None:
-        for attr in ("user", "user_role", "company_id", "branch_id", "session_id", "request_id", "ip"):
-            if hasattr(cls._local, attr):
-                delattr(cls._local, attr)
+        cls._context.set({
+            "user": "SYSTEM",
+            "user_role": "",
+            "company_id": "",
+            "branch_id": "",
+            "session_id": "",
+            "request_id": "",
+            "ip": "",
+        })
 
 
 class AuditLogger:

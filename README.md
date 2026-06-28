@@ -11,7 +11,7 @@ pip install auditX
 **From source (development):**
 
 ```bash
-git clone https://github.com/auditX/auditX.git
+git clone https://github.com/Script-By-Lin/auditX.git
 cd auditX
 pip install -e .
 ```
@@ -30,8 +30,11 @@ RequestContext.set(
     ip="192.168.1.10",
 )
 
+# Mock user context dictionary
+user = {"role": "admin"}
+
 # Security / auth
-audit.log_security("User login successful", action=AuditAction.LOGIN, user="admin")
+audit.log_security("User login successful", action=AuditAction.LOGIN, user=user.get("role"))
 
 # Trading — sales, purchase, payments
 audit.log_transaction(
@@ -109,26 +112,67 @@ tenant_logger.log_transaction(...)
 | `logs/security.jsonl` | Auth failures, rate limits, critical security events |
 | `logs/app.log` | General application messages (`audit.info()`, etc.) |
 
-## Flask / FastAPI middleware pattern
+## FastAPI Integration (ASGI Middleware)
+
+auditX includes a built-in, async-safe **`AuditMiddleware`** that automatically logs incoming HTTP requests, captures response times/status codes, tracks unhandled exceptions, and handles request-scoped variables (like request IDs and client IPs).
+
+Because it uses Python `contextvars` instead of `threading.local`, request context modifications made by your dependencies or endpoints will correctly propagate to all inner log calls and the final HTTP request log written by the middleware.
+
+### 1. Add Middleware to FastAPI
 
 ```python
-from auditx import RequestContext, audit, AuditAction
+from fastapi import FastAPI
+from auditx import AuditMiddleware
 
-def set_audit_context(user, request):
-    RequestContext.set(
-        user=user.username,
-        user_role=user.role,
-        company_id=user.company_id,
-        branch_id=user.branch_id,
-        request_id=request.headers.get("X-Request-ID", ""),
-        ip=request.remote_addr,
+app = FastAPI()
+
+# Register the middleware (it must wrap the entire app)
+app.add_middleware(AuditMiddleware)
+```
+
+### 2. Update Request Context inside Endpoints/Dependencies
+
+Use `RequestContext.update()` inside your authentication dependency to update user and branch details. Because of async task isolation, this context will be safely scoped to only the current request:
+
+```python
+from fastapi import Depends, Header
+from auditx import RequestContext, audit, BusinessModule, AuditAction
+
+async def get_current_user(
+    x_user: str = Header("SYSTEM"),
+    x_role: str = Header(""),
+    x_branch: str = Header("")
+):
+    # Set the authenticated user details for this async request context
+    RequestContext.update(
+        user=x_user,
+        user_role=x_role,
+        branch_id=x_branch,
     )
+    return x_user
 
-# On login
-audit.log_security("Login", action=AuditAction.LOGIN, user=username, success=True)
+@app.post("/sales/invoice")
+async def create_invoice(user: str = Depends(get_current_user)):
+    # Any audit log written here automatically inherits user, request_id, and ip
+    audit.log_transaction(
+        "Sales invoice posted",
+        module=BusinessModule.SALES,
+        action=AuditAction.POST,
+        reference_no="SI-2026-098",
+        amount=450000,
+    )
+    return {"status": "posted"}
+```
 
-# On logout
-RequestContext.clear()
+### 3. Excluded Paths
+
+By default, the middleware will ignore common paths like API docs or favicon. You can customize this when adding the middleware:
+
+```python
+app.add_middleware(
+    AuditMiddleware, 
+    exclude_paths=["/docs", "/redoc", "/openapi.json", "/healthz"]
+)
 ```
 
 ## Database hook (optional)
@@ -154,7 +198,8 @@ configure(log_dir="logs", on_audit=save_to_db)
 | `AuditLogger` | Create custom logger instances |
 | `configure()` | Reconfigure the global singleton |
 | `create_logger()` | Factory for new logger instances |
-| `RequestContext` | Thread-local user/tenant context |
+| `RequestContext` | Async & thread-safe user/tenant context (`contextvars`-backed) |
+| `AuditMiddleware` | ASGI Middleware for FastAPI/Starlette request logging |
 | `AuditEntry` | Structured audit record dataclass |
 | `BusinessModule` | `SALES`, `PURCHASE`, `INVENTORY`, `SERVICE`, etc. |
 | `AuditAction` | `CREATE`, `UPDATE`, `POST`, `PAYMENT`, `LOGIN`, etc. |
