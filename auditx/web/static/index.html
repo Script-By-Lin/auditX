@@ -1,0 +1,547 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>auditX Dashboard</title>
+  <style>
+    :root {
+      --bg: #0f1419;
+      --panel: #1a2332;
+      --border: #2d3a4f;
+      --text: #e7ecf3;
+      --muted: #8b9cb3;
+      --accent: #3b82f6;
+      --success: #22c55e;
+      --warning: #f59e0b;
+      --danger: #ef4444;
+      --security: #a855f7;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+    }
+    header {
+      padding: 1.25rem 1.5rem;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      flex-wrap: wrap;
+      gap: 1rem;
+      align-items: center;
+      justify-content: space-between;
+      background: linear-gradient(180deg, #152033, var(--bg));
+    }
+    header h1 { margin: 0; font-size: 1.35rem; font-weight: 600; }
+    header p { margin: 0.25rem 0 0; color: var(--muted); font-size: 0.875rem; }
+    .stats {
+      display: flex;
+      gap: 0.75rem;
+      flex-wrap: wrap;
+    }
+    .stat {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 0.6rem 0.9rem;
+      min-width: 110px;
+    }
+    .stat label { display: block; font-size: 0.7rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; }
+    .stat strong { font-size: 1.1rem; }
+    main { padding: 1rem 1.5rem 2rem; }
+    .toolbar {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+      gap: 0.75rem;
+      margin-bottom: 1rem;
+    }
+    input, select, button {
+      background: var(--panel);
+      color: var(--text);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 0.55rem 0.75rem;
+      font: inherit;
+    }
+    button {
+      cursor: pointer;
+      background: var(--accent);
+      border-color: var(--accent);
+      font-weight: 600;
+    }
+    button.secondary { background: var(--panel); border-color: var(--border); }
+    .tabs { display: flex; gap: 0.5rem; margin-bottom: 1rem; }
+    .tab {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      padding: 0.45rem 0.9rem;
+      cursor: pointer;
+      color: var(--muted);
+    }
+    .tab.active { color: var(--text); border-color: var(--accent); background: #1e3a5f; }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      overflow: hidden;
+    }
+    th, td {
+      padding: 0.75rem 0.85rem;
+      text-align: left;
+      border-bottom: 1px solid var(--border);
+      vertical-align: top;
+      font-size: 0.875rem;
+    }
+    th { color: var(--muted); font-weight: 600; background: #121a27; }
+    tr:hover td { background: #223049; cursor: pointer; }
+    .badge {
+      display: inline-block;
+      padding: 0.15rem 0.45rem;
+      border-radius: 999px;
+      font-size: 0.72rem;
+      font-weight: 700;
+      text-transform: uppercase;
+    }
+    .badge.AUDIT { background: #1e3a5f; color: #93c5fd; }
+    .badge.SECURITY, .badge.CRITICAL, .badge.ERROR { background: #451a1a; color: #fca5a5; }
+    .badge.WARNING { background: #422006; color: #fcd34d; }
+    .badge.INFO, .badge.NORMAL { background: #064e3b; color: #6ee7b7; }
+    .muted { color: var(--muted); }
+    .pagination {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-top: 1rem;
+      color: var(--muted);
+      font-size: 0.875rem;
+    }
+    .detail {
+      margin-top: 1rem;
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 1rem;
+      display: none;
+    }
+    .detail.open { display: block; }
+    .detail pre {
+      margin: 0.75rem 0 0;
+      padding: 0.85rem;
+      background: #0b1018;
+      border-radius: 8px;
+      overflow: auto;
+      font-size: 0.78rem;
+      line-height: 1.45;
+    }
+    .empty {
+      text-align: center;
+      padding: 2.5rem 1rem;
+      color: var(--muted);
+      border: 1px dashed var(--border);
+      border-radius: 12px;
+    }
+    .live-dot {
+      width: 8px; height: 8px; border-radius: 50%;
+      background: var(--success);
+      display: inline-block;
+      margin-right: 0.35rem;
+      animation: pulse 1.5s infinite;
+    }
+    .live-dot.off { background: var(--warning); animation: none; }
+    .live-dot.error { background: var(--danger); animation: none; }
+    tr.live-row td { animation: flash 1.4s ease-out; }
+    @keyframes flash {
+      0% { background: #2563eb; }
+      100% { background: transparent; }
+    }
+    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.35} }
+    .conn-status {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+      font-size: 0.82rem;
+      color: var(--muted);
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div>
+      <h1>auditX Dashboard</h1>
+      <p id="log-dir">Loading log directory…</p>
+    </div>
+    <div class="stats" id="stats"></div>
+  </header>
+
+  <main>
+    <div class="tabs">
+      <button class="tab active" data-source="audit">Audit Trail</button>
+      <button class="tab" data-source="security">Security Events</button>
+      <span id="conn-status" class="conn-status muted" style="align-self:center;margin-left:auto;">
+        <span class="live-dot off" id="live-dot"></span><span id="conn-label">Connecting…</span>
+      </span>
+    </div>
+
+    <div class="toolbar">
+      <input id="filter-q" placeholder="Search description, reference, entity…" />
+      <input id="filter-user" placeholder="User" />
+      <input id="filter-module" placeholder="Module (sales, auth…)" />
+      <select id="filter-level">
+        <option value="">All levels</option>
+        <option>AUDIT</option>
+        <option>SECURITY</option>
+        <option>ERROR</option>
+        <option>WARNING</option>
+        <option>INFO</option>
+      </select>
+      <input id="filter-branch" placeholder="Branch ID" />
+      <button id="btn-refresh">Refresh</button>
+      <button id="btn-clear" class="secondary">Clear filters</button>
+    </div>
+
+    <div id="table-wrap"></div>
+    <div class="pagination">
+      <span id="page-info"></span>
+      <div>
+        <button id="btn-prev" class="secondary">Previous</button>
+        <button id="btn-next" class="secondary">Next</button>
+      </div>
+    </div>
+
+    <section class="detail" id="detail">
+      <strong>Entry detail</strong>
+      <pre id="detail-json"></pre>
+    </section>
+  </main>
+
+  <script>
+    const state = {
+      source: "audit",
+      limit: 50,
+      offset: 0,
+      total: 0,
+      items: [],
+      seenKeys: new Set(),
+      streamAfter: 0,
+      apiKey: new URLSearchParams(location.search).get("api_key") || "",
+      ws: null,
+      sse: null,
+      transport: "connecting",
+    };
+
+    function entryKey(entry) {
+      return `${entry.timestamp}|${entry.request_id}|${entry.description}|${entry.module}|${entry.action}`;
+    }
+
+    function setConnectionStatus(label, mode) {
+      document.getElementById("conn-label").textContent = label;
+      const dot = document.getElementById("live-dot");
+      dot.classList.remove("off", "error");
+      if (mode === "live") dot.classList.remove("off");
+      else if (mode === "fallback") dot.classList.add("off");
+      else dot.classList.add("error");
+      state.transport = mode;
+    }
+
+    function matchesFilters(entry) {
+      const q = document.getElementById("filter-q").value.trim().toLowerCase();
+      const user = document.getElementById("filter-user").value.trim().toLowerCase();
+      const module = document.getElementById("filter-module").value.trim().toLowerCase();
+      const level = document.getElementById("filter-level").value.toUpperCase();
+      const branch = document.getElementById("filter-branch").value.trim().toLowerCase();
+      if (module && (entry.module || "").toLowerCase() !== module) return false;
+      if (level && (entry.level || "").toUpperCase() !== level) return false;
+      if (user && !(entry.user || "").toLowerCase().includes(user)) return false;
+      if (branch && !(entry.branch_id || "").toLowerCase().includes(branch)) return false;
+      if (q) {
+        const haystack = JSON.stringify(entry).toLowerCase();
+        if (!haystack.includes(q)) return false;
+      }
+      return true;
+    }
+
+    function rowHtml(entry, idx, live = false) {
+      return `
+        <tr data-idx="${idx}" class="${live ? "live-row" : ""}">
+          <td>${entry.timestamp || "—"}</td>
+          <td>${levelBadge(entry.level || "AUDIT")}</td>
+          <td>${entry.module || "—"} / ${entry.action || "—"}</td>
+          <td>${entry.description || "—"}</td>
+          <td>${entry.user || "SYSTEM"}</td>
+          <td>${entry.branch_id || "—"}</td>
+          <td>${entry.reference_no || entry.entity_id || "—"}</td>
+        </tr>`;
+    }
+
+    function bindRowClicks() {
+      const wrap = document.getElementById("table-wrap");
+      wrap.querySelectorAll("tbody tr").forEach((row) => {
+        row.addEventListener("click", () => showDetail(state.items[row.dataset.idx]));
+      });
+    }
+
+    function apiUrl(path, params = {}) {
+      const url = new URL(path.replace(/^\//, ""), location.href);
+      Object.entries(params).forEach(([k, v]) => {
+        if (v !== "" && v != null) url.searchParams.set(k, v);
+      });
+      if (state.apiKey) url.searchParams.set("api_key", state.apiKey);
+      return url;
+    }
+
+    async function fetchJson(path, params) {
+      const res = await fetch(apiUrl(path, params), {
+        headers: state.apiKey ? { "X-API-Key": state.apiKey } : {},
+      });
+      if (!res.ok) throw new Error(await res.text());
+      return res.json();
+    }
+
+    function levelBadge(level) {
+      return `<span class="badge ${level}">${level}</span>`;
+    }
+
+    function renderStats(data) {
+      document.getElementById("log-dir").textContent = data.log_dir;
+      const active = state.source === "security" ? data.security : data.audit;
+      document.getElementById("stats").innerHTML = `
+        <div class="stat"><label>Total entries</label><strong>${active.total}</strong></div>
+        <div class="stat"><label>Failures</label><strong>${active.failures}</strong></div>
+        <div class="stat"><label>Latest</label><strong>${active.latest_timestamp || "—"}</strong></div>
+      `;
+    }
+
+    function renderTable(items) {
+      state.items = items;
+      const wrap = document.getElementById("table-wrap");
+      if (!items.length) {
+        wrap.innerHTML = `<div class="empty">No log entries found for the current filters.</div>`;
+        return;
+      }
+      const rows = items.map((entry, idx) => rowHtml(entry, idx)).join("");
+      wrap.innerHTML = `
+        <table>
+          <thead>
+            <tr>
+              <th>Timestamp</th><th>Level</th><th>Module / Action</th>
+              <th>Description</th><th>User</th><th>Branch</th><th>Reference</th>
+            </tr>
+          </thead>
+          <tbody>${rows}</tbody>
+        </table>`;
+      bindRowClicks();
+    }
+
+    function prependLiveEntry(entry) {
+      const key = entryKey(entry);
+      if (state.seenKeys.has(key)) return;
+      state.seenKeys.add(key);
+
+      if (state.offset !== 0 || !matchesFilters(entry)) {
+        loadStats();
+        return;
+      }
+
+      state.items.unshift(entry);
+      if (state.items.length > state.limit) state.items.pop();
+      state.total += 1;
+
+      const wrap = document.getElementById("table-wrap");
+      const tbody = wrap.querySelector("tbody");
+      if (!tbody) {
+        renderTable(state.items);
+        updatePageInfo();
+        loadStats();
+        return;
+      }
+
+      const temp = document.createElement("tbody");
+      temp.innerHTML = rowHtml(entry, 0, true);
+      const row = temp.firstElementChild;
+      tbody.insertBefore(row, tbody.firstChild);
+      row.addEventListener("click", () => showDetail(entry));
+
+      Array.from(tbody.querySelectorAll("tr")).forEach((tr, idx) => {
+        tr.dataset.idx = String(idx);
+      });
+      if (tbody.children.length > state.limit) {
+        tbody.removeChild(tbody.lastElementChild);
+      }
+
+      updatePageInfo();
+      loadStats();
+    }
+
+    function updatePageInfo() {
+      const from = state.total ? state.offset + 1 : 0;
+      const to = Math.min(state.offset + state.items.length, state.total);
+      document.getElementById("page-info").textContent = `Showing ${from}–${to} of ${state.total}`;
+    }
+
+    function showDetail(entry) {
+      const panel = document.getElementById("detail");
+      document.getElementById("detail-json").textContent = JSON.stringify(entry, null, 2);
+      panel.classList.add("open");
+    }
+
+    function currentFilters() {
+      return {
+        source: state.source,
+        limit: state.limit,
+        offset: state.offset,
+        q: document.getElementById("filter-q").value.trim(),
+        user: document.getElementById("filter-user").value.trim(),
+        module: document.getElementById("filter-module").value.trim(),
+        level: document.getElementById("filter-level").value,
+        branch_id: document.getElementById("filter-branch").value.trim(),
+      };
+    }
+
+    async function loadEntries() {
+      const data = await fetchJson("api/entries", currentFilters());
+      state.total = data.total;
+      state.seenKeys = new Set(data.items.map(entryKey));
+      renderTable(data.items);
+      updatePageInfo();
+    }
+
+    async function loadStats() {
+      const data = await fetchJson("api/stats");
+      renderStats(data);
+    }
+
+    function wsUrl() {
+      const url = new URL("api/ws", location.href);
+      url.protocol = location.protocol === "https:" ? "wss:" : "ws:";
+      if (state.apiKey) url.searchParams.set("api_key", state.apiKey);
+      return url.toString();
+    }
+
+    function handleLiveEvent(source, entry) {
+      if (source !== state.source) return;
+      prependLiveEntry(entry);
+    }
+
+    function connectWebSocket() {
+      if (state.ws) {
+        state.ws.close();
+        state.ws = null;
+      }
+      const socket = new WebSocket(wsUrl());
+      state.ws = socket;
+
+      socket.onopen = () => setConnectionStatus("Real-time (WebSocket)", "live");
+
+      socket.onmessage = (event) => {
+        try {
+          const payload = JSON.parse(event.data);
+          if (payload.type === "connected") return;
+          if (payload.type === "entry") {
+            handleLiveEvent(payload.source, payload.entry);
+          }
+        } catch (_) {}
+      };
+
+      socket.onclose = () => {
+        setConnectionStatus("Reconnecting…", "fallback");
+        setTimeout(connectWebSocket, 2500);
+        connectStreamFallback();
+      };
+
+      socket.onerror = () => socket.close();
+    }
+
+    function connectStreamFallback() {
+      if (state.sse) return;
+      const url = apiUrl("api/stream", { source: state.source, after: state.streamAfter });
+      const source = new EventSource(url);
+      state.sse = source;
+      setConnectionStatus("File tail (SSE fallback)", "fallback");
+
+      source.onmessage = (event) => {
+        try {
+          const payload = JSON.parse(event.data);
+          if (payload.cursor) state.streamAfter = payload.cursor;
+          if (payload.entry) handleLiveEvent(payload.source || state.source, payload.entry);
+        } catch (_) {}
+      };
+
+      source.onerror = () => {
+        source.close();
+        state.sse = null;
+        setConnectionStatus("Stream disconnected", "error");
+        setTimeout(connectStreamFallback, 3000);
+      };
+    }
+
+    document.querySelectorAll(".tab").forEach((tab) => {
+      tab.addEventListener("click", async () => {
+        document.querySelectorAll(".tab").forEach((t) => t.classList.remove("active"));
+        tab.classList.add("active");
+        state.source = tab.dataset.source;
+        state.offset = 0;
+        state.streamAfter = 0;
+        state.seenKeys.clear();
+        if (state.sse) { state.sse.close(); state.sse = null; }
+        await loadStats();
+        await loadEntries();
+        connectWebSocket();
+      });
+    });
+
+    document.getElementById("btn-refresh").addEventListener("click", async () => {
+      state.offset = 0;
+      await loadStats();
+      await loadEntries();
+    });
+
+    document.getElementById("btn-clear").addEventListener("click", async () => {
+      ["filter-q", "filter-user", "filter-module", "filter-branch"].forEach((id) => {
+        document.getElementById(id).value = "";
+      });
+      document.getElementById("filter-level").value = "";
+      state.offset = 0;
+      await loadEntries();
+    });
+
+    document.getElementById("btn-prev").addEventListener("click", async () => {
+      state.offset = Math.max(0, state.offset - state.limit);
+      await loadEntries();
+    });
+
+    document.getElementById("btn-next").addEventListener("click", async () => {
+      if (state.offset + state.limit < state.total) {
+        state.offset += state.limit;
+        await loadEntries();
+      }
+    });
+
+    ["filter-q", "filter-user", "filter-module", "filter-level", "filter-branch"].forEach((id) => {
+      document.getElementById(id).addEventListener("change", async () => {
+        state.offset = 0;
+        await loadEntries();
+      });
+      if (id === "filter-q") {
+        document.getElementById(id).addEventListener("keyup", async (e) => {
+          if (e.key === "Enter") {
+            state.offset = 0;
+            await loadEntries();
+          }
+        });
+      }
+    });
+
+    (async function init() {
+      await loadStats();
+      await loadEntries();
+      connectWebSocket();
+    })();
+  </script>
+</body>
+</html>

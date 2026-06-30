@@ -6,6 +6,7 @@ Proprietary — not licensed for use in other projects without permission.
 
 from __future__ import annotations
 
+import asyncio
 import datetime
 import contextvars
 import json
@@ -616,4 +617,152 @@ class AuditLogger:
             console_level = self._format_level(level_val)
             console_line = f"{dt} | {user_val} | {console_method} | {console_level} | {custom_part}"
             print(console_line)
+
+    async def _async_call(self, fn: Callable[..., Any], *args: Any, **kwargs: Any) -> Any:
+        """Run blocking log I/O in a worker thread so async apps stay responsive."""
+        return await asyncio.to_thread(fn, *args, **kwargs)
+
+    async def alog(
+        self,
+        description: str,
+        *,
+        level: str = LogLevel.AUDIT.value,
+        module: str = BusinessModule.SYSTEM.value,
+        action: str = AuditAction.READ.value,
+        **kwargs: Any,
+    ) -> AuditEntry:
+        return await self._async_call(
+            self.log,
+            description,
+            level=level,
+            module=module,
+            action=action,
+            **kwargs,
+        )
+
+    async def alog_change(
+        self,
+        description: str,
+        *,
+        module: BusinessModule | str,
+        action: AuditAction | str,
+        entity_type: str,
+        entity_id: str,
+        old_values: dict[str, Any],
+        new_values: dict[str, Any],
+        reference_no: str = "",
+        **kwargs: Any,
+    ) -> AuditEntry:
+        return await self._async_call(
+            self.log_change,
+            description,
+            module=module,
+            action=action,
+            entity_type=entity_type,
+            entity_id=entity_id,
+            old_values=old_values,
+            new_values=new_values,
+            reference_no=reference_no,
+            **kwargs,
+        )
+
+    async def alog_transaction(
+        self,
+        description: str,
+        *,
+        module: BusinessModule,
+        action: AuditAction,
+        reference_no: str,
+        amount: float,
+        currency: str = "MMK",
+        entity_type: str = "",
+        entity_id: str = "",
+        party: str = "",
+        **kwargs: Any,
+    ) -> AuditEntry:
+        return await self._async_call(
+            self.log_transaction,
+            description,
+            module=module,
+            action=action,
+            reference_no=reference_no,
+            amount=amount,
+            currency=currency,
+            entity_type=entity_type,
+            entity_id=entity_id,
+            party=party,
+            **kwargs,
+        )
+
+    async def alog_inventory(
+        self,
+        description: str,
+        *,
+        action: AuditAction,
+        product_id: str,
+        product_name: str = "",
+        quantity: float,
+        unit: str = "pcs",
+        warehouse_id: str = "",
+        reference_no: str = "",
+        **kwargs: Any,
+    ) -> AuditEntry:
+        return await self._async_call(
+            self.log_inventory,
+            description,
+            action=action,
+            product_id=product_id,
+            product_name=product_name,
+            quantity=quantity,
+            unit=unit,
+            warehouse_id=warehouse_id,
+            reference_no=reference_no,
+            **kwargs,
+        )
+
+    async def alog_service(
+        self,
+        description: str,
+        *,
+        action: AuditAction,
+        job_id: str,
+        customer_id: str = "",
+        technician: str = "",
+        service_type: str = "",
+        status_label: str = "",
+        amount: Optional[float] = None,
+        **kwargs: Any,
+    ) -> AuditEntry:
+        return await self._async_call(
+            self.log_service,
+            description,
+            action=action,
+            job_id=job_id,
+            customer_id=customer_id,
+            technician=technician,
+            service_type=service_type,
+            status_label=status_label,
+            amount=amount,
+            **kwargs,
+        )
+
+    async def alog_security(
+        self,
+        description: str,
+        *,
+        action: AuditAction = AuditAction.LOGIN,
+        user: str = "UNKNOWN",
+        ip: Optional[str] = None,
+        success: bool = True,
+        **kwargs: Any,
+    ) -> AuditEntry:
+        return await self._async_call(
+            self.log_security,
+            description,
+            action=action,
+            user=user,
+            ip=ip,
+            success=success,
+            **kwargs,
+        )
 

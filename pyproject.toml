@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "auditX"
-version = "0.1.5"
-description = "ERP-grade audit logging for trading and service businesses"
+version = "0.1.7"
+description = "ERP-grade audit logging with optional web dashboard for trading and service businesses"
 readme = "README.md"
 requires-python = ">=3.9"
 license = { text = "Proprietary" }
@@ -30,9 +30,11 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = ["build", "twine"]
+web = ["fastapi>=0.100", "uvicorn[standard]>=0.23"]
 
 [project.scripts]
 auditx-demo = "auditx.__main__:main"
+auditx-ui = "auditx.web.server:main"
 
 [project.urls]
 Homepage = "https://github.com/auditX/auditX"
@@ -41,3 +43,6 @@ Documentation = "https://github.com/auditX/auditX#readme"
 [tool.setuptools.packages.find]
 where = ["."]
 include = ["auditx*"]
+
+[tool.setuptools.package-data]
+auditx = ["web/static/*"]

@@ -8,6 +8,12 @@ ERP-grade audit logging for **trading** and **service** businesses. Track who di
 pip install auditX
 ```
 
+**With web dashboard:**
+
+```bash
+pip install auditX[web]
+```
+
 **From source (development):**
 
 ```bash
@@ -95,6 +101,159 @@ python -m auditx
 # or if installed as a package:
 auditx-demo
 ```
+
+---
+
+## Web Dashboard
+
+`auditX` includes an optional **read-only web UI** for browsing `audit.jsonl` and `security.jsonl` files. Install the web extras, then launch the dashboard against your log directory:
+
+```bash
+pip install auditX[web]
+
+# Point at the directory where auditX writes logs (default: ./logs)
+auditx-ui --log-dir ./logs --port 8080
+```
+
+Open **http://127.0.0.1:8080/** in your browser.
+
+### CLI options
+
+| Option | Default | Description |
+| :--- | :--- | :--- |
+| `--log-dir` | `logs` | Folder containing `audit.jsonl` and `security.jsonl` |
+| `--host` | `127.0.0.1` | Bind address (use `0.0.0.0` only on trusted networks) |
+| `--port` | `8080` | HTTP port |
+| `--api-key` | *(none)* | Optional API key; send as `X-API-Key` header or `?api_key=` query param |
+
+Example with API key protection:
+
+```bash
+auditx-ui --log-dir /var/log/my-erp --host 127.0.0.1 --port 9090 --api-key "change-me-in-production"
+```
+
+Then visit: `http://127.0.0.1:9090/?api_key=change-me-in-production`
+
+### Dashboard features
+
+- **Audit trail** and **security events** tabs
+- Search and filter by user, module, level, branch, and free-text query
+- Paginated table with JSON detail view (including `old_values` / `new_values`)
+- **Real-time WebSocket push** — new entries appear instantly with highlight animation
+- **SSE file-tail fallback** — catches logs written by other processes/workers
+- Summary stats (total entries, failures, latest timestamp)
+
+### Real-time logging (async + WebSocket)
+
+When the dashboard runs **in the same process** as your app, audit entries are pushed to the UI instantly over WebSocket — no polling delay.
+
+**1. Enable real-time push on your logger**
+
+```python
+from auditx import configure, audit, BusinessModule, AuditAction
+from auditx.web import enable_realtime
+
+configure(log_dir="logs")
+enable_realtime()  # wires global audit singleton → dashboard hub
+```
+
+Or pass the logger explicitly when creating the dashboard:
+
+```python
+from auditx import create_logger
+from auditx.web import create_app, connect_logger
+
+logger = create_logger(log_dir="logs")
+connect_logger(logger)
+
+app = create_app(log_dir="logs", logger=logger)
+```
+
+**2. Use async log methods in FastAPI routes**
+
+Sync `audit.log_*` methods block the event loop on file I/O. In async handlers, prefer the `alog_*` variants — they delegate to a thread pool via `asyncio.to_thread`:
+
+```python
+from auditx import audit, RequestContext, BusinessModule, AuditAction
+
+@app.post("/sales/invoice")
+async def create_invoice():
+    RequestContext.set(user="admin", branch_id="BR-YGN")
+
+    await audit.alog_transaction(
+        "Sales invoice posted",
+        module=BusinessModule.SALES,
+        action=AuditAction.POST,
+        reference_no="SI-2026-0042",
+        amount=1_250_000,
+    )
+    return {"status": "posted"}
+```
+
+Available async methods: `alog`, `alog_change`, `alog_transaction`, `alog_inventory`, `alog_service`, `alog_security`.
+
+**3. Integrated FastAPI app (logging + dashboard together)**
+
+```python
+from auditx import configure
+from auditx.web import create_app, enable_realtime
+
+configure(log_dir="logs")
+enable_realtime()
+
+app = create_app(log_dir="logs")  # auto-connects matching global logger
+
+# uvicorn main:app --host 127.0.0.1 --port 8080
+```
+
+Open the dashboard, trigger logs from your API — entries appear in the table immediately.
+
+> **Note:** Standalone `auditx-ui` still works for read-only file browsing. Real-time WebSocket push requires `enable_realtime()` or `connect_logger()` in the same process. Logs written by separate worker processes are picked up via the SSE file-tail fallback (~2s).
+
+> [!WARNING]
+> Audit logs are sensitive. The dashboard is **read-only**, but you should still bind to `127.0.0.1`, use `--api-key` in shared environments, and never expose it publicly without authentication and TLS.
+
+### Mount into an existing FastAPI app
+
+If your ERP already runs on FastAPI, mount the viewer under a path prefix:
+
+```python
+from fastapi import FastAPI
+from auditx.web import mount_audit_viewer
+
+app = FastAPI()
+
+mount_audit_viewer(
+    app,
+    log_dir="/var/log/my-erp",
+    prefix="/audit",
+    api_key="change-me-in-production",  # optional
+    realtime=True,
+)
+```
+
+The UI and API are then available at `/audit/` (for example `http://localhost:8000/audit/`).
+
+### Programmatic server setup
+
+```python
+from auditx.web import create_app
+
+app = create_app(log_dir="logs", api_key=None)
+
+# Run with uvicorn, or mount app in your ASGI stack
+# uvicorn module:app --host 127.0.0.1 --port 8080
+```
+
+REST endpoints exposed by the dashboard:
+
+| Endpoint | Description |
+| :--- | :--- |
+| `GET /api/stats` | Summary counts for audit and security logs |
+| `GET /api/entries` | Filtered, paginated log entries (`source=audit\|security`) |
+| `GET /api/recent` | In-memory buffer of recent entries (same-process realtime) |
+| `GET /api/stream` | SSE stream (hub push + file-tail fallback) |
+| `WS /api/ws` | WebSocket stream for instant in-process log push |
 
 ---
 
@@ -613,6 +772,12 @@ def logging_custom(
 | `AuditMiddleware` | Middleware | Raw ASGI app wrapper capturing routing details and timings. |
 | `configure()` | Function | Reconfigures settings (e.g., `log_dir`, `on_audit`) of global singleton. |
 | `create_logger()` | Function | Factory method to initialize separate, isolated `AuditLogger` instances. |
+| `create_app()` | Function | Build the read-only web dashboard FastAPI app (`pip install auditX[web]`). |
+| `enable_realtime()` | Function | Connect the global logger to the dashboard WebSocket hub. |
+| `connect_logger()` | Function | Connect a specific `AuditLogger` to the real-time hub. |
+| `mount_audit_viewer()` | Function | Mount the dashboard onto an existing FastAPI application. |
+| `audit.alog_*()` | Methods | Async variants of log methods for non-blocking FastAPI handlers. |
+| `auditx-ui` | CLI | Launch the web dashboard (`auditx-ui --log-dir ./logs`). |
 
 ### Business Enums
 
