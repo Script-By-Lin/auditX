@@ -26,7 +26,7 @@ try:
     from auditx import __version__
     from auditx.core import AuditLogger
 except ImportError:
-    __version__ = "0.1.7"
+    __version__ = "0.9.1"
     AuditLogger = Any  # type: ignore[misc,assignment]
 
 _STATIC_DIR = Path(__file__).resolve().parent / "static"
@@ -97,7 +97,7 @@ def create_app(
     async def entries(
         _: None = Depends(auth),
         source: LogSource = Query("audit"),
-        limit: int = Query(50, ge=1, le=500),
+        limit: int = Query(100, ge=1, le=5000),
         offset: int = Query(0, ge=0),
         module: str = Query(""),
         level: str = Query(""),

@@ -13,7 +13,7 @@ LogSource = Literal["audit", "security"]
 @dataclass
 class LogQuery:
     source: LogSource = "audit"
-    limit: int = 50
+    limit: int = 100
     offset: int = 0
     module: str = ""
     level: str = ""
@@ -71,11 +71,11 @@ class LogReader:
         path = self._path_for(query.source)
         matched = [entry for entry in self._iter_entries(path) if self._matches(entry, query)]
         total = len(matched)
+        matched.reverse()
         if query.offset:
             matched = matched[query.offset :]
         if query.limit >= 0:
             matched = matched[: query.limit]
-        matched.reverse()
         return matched, total
 
     def stats(self) -> dict[str, Any]:

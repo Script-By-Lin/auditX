@@ -113,14 +113,6 @@
     .badge.WARNING { background: #422006; color: #fcd34d; }
     .badge.INFO, .badge.NORMAL { background: #064e3b; color: #6ee7b7; }
     .muted { color: var(--muted); }
-    .pagination {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-top: 1rem;
-      color: var(--muted);
-      font-size: 0.875rem;
-    }
     .detail {
       margin-top: 1rem;
       background: var(--panel);
@@ -206,13 +198,6 @@
     </div>
 
     <div id="table-wrap"></div>
-    <div class="pagination">
-      <span id="page-info"></span>
-      <div>
-        <button id="btn-prev" class="secondary">Previous</button>
-        <button id="btn-next" class="secondary">Next</button>
-      </div>
-    </div>
 
     <section class="detail" id="detail">
       <strong>Entry detail</strong>
@@ -223,7 +208,7 @@
   <script>
     const state = {
       source: "audit",
-      limit: 50,
+      limit: 100,
       offset: 0,
       total: 0,
       items: [],
@@ -356,7 +341,6 @@
       const tbody = wrap.querySelector("tbody");
       if (!tbody) {
         renderTable(state.items);
-        updatePageInfo();
         loadStats();
         return;
       }
@@ -374,14 +358,7 @@
         tbody.removeChild(tbody.lastElementChild);
       }
 
-      updatePageInfo();
       loadStats();
-    }
-
-    function updatePageInfo() {
-      const from = state.total ? state.offset + 1 : 0;
-      const to = Math.min(state.offset + state.items.length, state.total);
-      document.getElementById("page-info").textContent = `Showing ${from}–${to} of ${state.total}`;
     }
 
     function showDetail(entry) {
@@ -408,7 +385,6 @@
       state.total = data.total;
       state.seenKeys = new Set(data.items.map(entryKey));
       renderTable(data.items);
-      updatePageInfo();
     }
 
     async function loadStats() {
@@ -510,18 +486,6 @@
       await loadEntries();
     });
 
-    document.getElementById("btn-prev").addEventListener("click", async () => {
-      state.offset = Math.max(0, state.offset - state.limit);
-      await loadEntries();
-    });
-
-    document.getElementById("btn-next").addEventListener("click", async () => {
-      if (state.offset + state.limit < state.total) {
-        state.offset += state.limit;
-        await loadEntries();
-      }
-    });
-
     ["filter-q", "filter-user", "filter-module", "filter-level", "filter-branch"].forEach((id) => {
       document.getElementById(id).addEventListener("change", async () => {
         state.offset = 0;
@@ -541,6 +505,14 @@
       await loadStats();
       await loadEntries();
       connectWebSocket();
+
+      // Auto-refresh every 5 seconds (only when tab is active)
+      setInterval(async () => {
+        if (!document.hidden) {
+          await loadStats();
+          await loadEntries();
+        }
+      }, 5000);
     })();
   </script>
 </body>
