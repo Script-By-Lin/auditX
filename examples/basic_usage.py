@@ -88,10 +88,38 @@ def example_service_workflow() -> None:
     )
 
 
+def example_custom_logging_format() -> None:
+    """Demonstrate logging_custom with custom fields and messages."""
+    # Using default values from RequestContext
+    RequestContext.set(user="manager_user", ip="192.168.1.15")
+    audit.logging_custom("Application initialization completed", level="info")
+
+    # Overriding user and method explicitly
+    audit.logging_custom(
+        "User modified custom system setting",
+        level="warning",
+        user="sys_admin",
+        method="POST"
+    )
+
+    # Passing custom keyword arguments
+    audit.logging_custom(
+        "Tenant status updated",
+        level="info",
+        user="billing_service",
+        isActive="Not at all"
+    )
+
+
 if __name__ == "__main__":
     print("=== auditX basic usage ===\n")
     example_default_singleton()
     example_custom_logger()
     example_field_change_audit()
     example_service_workflow()
+    
+    print("\n=== Custom Format Logging ===")
+    example_custom_logging_format()
+    
     print("\nLogs written to ./logs/ — open audit.jsonl to inspect structured entries.")
+

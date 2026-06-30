@@ -585,3 +585,35 @@ class AuditLogger:
             ip=ip,
             **kwargs,
         )
+
+    def logging_custom(
+        self,
+        message: str,
+        *,
+        level: str = "INFO",
+        user: Optional[str] = None,
+        method: Optional[str] = None,
+        **kwargs: Any,
+    ) -> None:
+        """Log a custom message in the format: datetime | user | method | Level | Custom"""
+        dt = self._display_timestamp()
+        ctx = RequestContext.get()
+        user_val = user or ctx.get("user", "SYSTEM")
+        method_val = method or ctx.get("method") or "N/A"
+        level_val = level.upper()
+
+        custom_part = message
+        if kwargs:
+            custom_part = f"{message} | {json.dumps(kwargs, ensure_ascii=False, default=str)}"
+
+        # Format for file (no colors)
+        file_line = f"{dt} | {user_val} | {method_val.upper()} | {level_val} | {custom_part}"
+        self._append_line(self.app_log_path, file_line)
+
+        # Format for console (with colors if console is True)
+        if self.console:
+            console_method = self._format_method(method_val) if method_val != "N/A" else "N/A"
+            console_level = self._format_level(level_val)
+            console_line = f"{dt} | {user_val} | {console_method} | {console_level} | {custom_part}"
+            print(console_line)
+

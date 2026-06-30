@@ -40,7 +40,7 @@ except ImportError:
         def __init__(self, *args: Any, **kwargs: Any) -> None:
             raise ImportError("Please install starlette and fastapi to use AuditMiddleware.")
 
-__version__ = "0.1.2"
+__version__ = "0.1.5"
 __author__ = "auditX"
 __license__ = "Proprietary"
 __all__ = [
